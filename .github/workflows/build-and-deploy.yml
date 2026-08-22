@@ -1,0 +1,132 @@
+name: Build and deploy
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: read
+  packages: write
+  actions: read
+
+concurrency:
+  group: deploy-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Publish immutable image
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      (github.event.workflow_run.head_branch == 'develop' ||
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      environment: ${{ steps.target.outputs.environment }}
+      version: ${{ steps.target.outputs.version }}
+    steps:
+      - name: Select deployment target
+        id: target
+        env:
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "$BRANCH" = develop ]; then
+            environment="dev"
+          else
+            environment="test"
+          fi
+          printf 'environment=%s\n' "$environment" >> "$GITHUB_OUTPUT"
+          printf 'version=sha-%s\n' "${COMMIT_SHA:0:12}" >> "$GITHUB_OUTPUT"
+
+      - name: Check out verified commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/dawah90/danwah.me:sha-${{ github.event.workflow_run.head_sha }}
+            ghcr.io/dawah90/danwah.me:${{ github.event.workflow_run.head_branch }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy verified image
+    needs: build
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - danwah-deploy
+    environment: ${{ needs.build.outputs.environment }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Check out deployment scripts
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy image digest
+        env:
+          TARGET_ENVIRONMENT: ${{ needs.build.outputs.environment }}
+          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
+          APP_VERSION: ${{ needs.build.outputs.version }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          ./scripts/deploy.sh \
+            "$TARGET_ENVIRONMENT" \
+            "ghcr.io/dawah90/danwah.me@$IMAGE_DIGEST" \
+            "$APP_VERSION" \
+            "$COMMIT_SHA"
+
+      - name: Verify public HTTPS endpoint
+        env:
+          TARGET_ENVIRONMENT: ${{ needs.build.outputs.environment }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          response=$(curl --fail --silent --show-error \
+            "https://${TARGET_ENVIRONMENT}.danwah.me/version")
+          python3 - "$response" "$TARGET_ENVIRONMENT" "$COMMIT_SHA" <<'PY'
+          import json
+          import sys
+
+          payload = json.loads(sys.argv[1])
+          expected_environment = sys.argv[2]
+          expected_sha = sys.argv[3]
+          assert payload["environment"] == expected_environment, payload
+          assert payload["commit_sha"] == expected_sha, payload
+          print(json.dumps(payload, sort_keys=True))
+          PY
