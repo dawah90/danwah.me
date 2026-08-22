@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - develop
+      - test
       - main
   pull_request:
     branches:
       - develop
+      - test
       - main
 
 permissions:
