@@ -8,6 +8,7 @@ on:
       - completed
     branches:
       - develop
+      - test
       - main
 
 permissions:
@@ -26,11 +27,13 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       (github.event.workflow_run.head_branch == 'develop' ||
+       github.event.workflow_run.head_branch == 'test' ||
        github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     outputs:
       digest: ${{ steps.build.outputs.digest }}
       environment: ${{ steps.target.outputs.environment }}
+      github_environment: ${{ steps.target.outputs.github_environment }}
       version: ${{ steps.target.outputs.version }}
     steps:
       - name: Select deployment target
@@ -39,12 +42,26 @@ jobs:
           BRANCH: ${{ github.event.workflow_run.head_branch }}
           COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          if [ "$BRANCH" = develop ]; then
-            environment="dev"
-          else
-            environment="test"
-          fi
+          case "$BRANCH" in
+            develop)
+              environment="dev"
+              github_environment="dev"
+              ;;
+            test)
+              environment="test"
+              github_environment="test"
+              ;;
+            main)
+              environment="prod"
+              github_environment="production"
+              ;;
+            *)
+              printf 'Unsupported deployment branch: %s\n' "$BRANCH" >&2
+              exit 2
+              ;;
+          esac
           printf 'environment=%s\n' "$environment" >> "$GITHUB_OUTPUT"
+          printf 'github_environment=%s\n' "$github_environment" >> "$GITHUB_OUTPUT"
           printf 'version=sha-%s\n' "${COMMIT_SHA:0:12}" >> "$GITHUB_OUTPUT"
 
       - name: Check out verified commit
@@ -82,7 +99,7 @@ jobs:
       - Linux
       - X64
       - danwah-deploy
-    environment: ${{ needs.build.outputs.environment }}
+    environment: ${{ needs.build.outputs.github_environment }}
     permissions:
       contents: read
       packages: read
