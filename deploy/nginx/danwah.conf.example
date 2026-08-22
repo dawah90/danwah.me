@@ -1,0 +1,68 @@
+# Reference configuration for the Nginx host at 192.168.50.203.
+# Adapt certificate paths/includes to the existing Nginx installation.
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name dev.danwah.me;
+
+    # ssl_certificate /path/to/dev/fullchain.pem;
+    # ssl_certificate_key /path/to/dev/privkey.pem;
+
+    location / {
+        proxy_pass http://192.168.50.21:8101;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 60s;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name test.danwah.me;
+
+    # ssl_certificate /path/to/test/fullchain.pem;
+    # ssl_certificate_key /path/to/test/privkey.pem;
+
+    location / {
+        proxy_pass http://192.168.50.21:8102;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 60s;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name prod.danwah.me;
+
+    # ssl_certificate /path/to/prod/fullchain.pem;
+    # ssl_certificate_key /path/to/prod/privkey.pem;
+
+    location / {
+        proxy_pass http://192.168.50.21:8103;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 60s;
+    }
+}

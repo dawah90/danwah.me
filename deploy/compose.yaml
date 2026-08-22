@@ -1,0 +1,48 @@
+name: danwah
+
+x-app: &app
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  read_only: true
+  tmpfs:
+    - /tmp:size=16m,mode=1777
+  deploy:
+    resources:
+      limits:
+        cpus: "0.50"
+        memory: 256M
+
+services:
+  dev:
+    <<: *app
+    image: ${DEV_IMAGE:-danwah.me:local}
+    container_name: danwah-dev
+    ports:
+      - "192.168.50.21:8101:8000"
+    environment:
+      APP_ENV: dev
+      APP_VERSION: ${DEV_VERSION:-local}
+      COMMIT_SHA: ${DEV_COMMIT_SHA:-unknown}
+
+  test:
+    <<: *app
+    image: ${TEST_IMAGE:-danwah.me:local}
+    container_name: danwah-test
+    ports:
+      - "192.168.50.21:8102:8000"
+    environment:
+      APP_ENV: test
+      APP_VERSION: ${TEST_VERSION:-local}
+      COMMIT_SHA: ${TEST_COMMIT_SHA:-unknown}
+
+  prod:
+    <<: *app
+    image: ${PROD_IMAGE:-danwah.me:local}
+    container_name: danwah-prod
+    ports:
+      - "192.168.50.21:8103:8000"
+    environment:
+      APP_ENV: prod
+      APP_VERSION: ${PROD_VERSION:-local}
+      COMMIT_SHA: ${PROD_COMMIT_SHA:-unknown}

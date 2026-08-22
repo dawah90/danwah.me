@@ -1,0 +1,16 @@
+[Unit]
+Description=GitHub Actions runner for dawah90/danwah.me
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/actions-runner/danwah.me
+ExecStart=%h/actions-runner/danwah.me/run.sh
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=90
+
+[Install]
+WantedBy=default.target
