@@ -7,8 +7,20 @@ Ett utbildningsprojekt för att lära sig en modern utvecklingsprocess med FastA
 | Miljö | Branch/release | URL |
 |---|---|---|
 | Dev | `develop` | https://dev.danwah.me |
-| Test | `main` | https://test.danwah.me |
-| Prod | manuell versionsrelease | https://prod.danwah.me |
+| Test | `test` | https://test.danwah.me |
+| Prod | `main` efter godkännande i GitHub Environment `production` | https://prod.danwah.me |
+
+## Deployflöde
+
+```text
+feature-branch → Pull Request → develop → dev
+                                   ↓
+                                  test → test
+                                   ↓
+                                  main → prod (manuellt godkännande)
+```
+
+Varje lyckad branch-push bygger en immutable image i GHCR. Deployen verifierar sedan både `/health` och `/version` mot rätt miljö och commit-SHA. Produktion använder GitHub Environment `production`, som kräver ett manuellt godkännande innan containern uppdateras.
 
 ## Lokal utveckling
 
